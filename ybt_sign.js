@@ -184,7 +184,35 @@ function formatNotifyMessage(results) {
     return message;
 }
 
+// 调试用的通知发送函数
+async function debugSendNotify(title, content) {
+    log('=== 通知调试信息 ===');
+    log(`标题: ${title}`);
+    log(`内容长度: ${content.length}`);
+    log(`内容预览: ${content.substring(0, 100)}...`);
+    
+    try {
+        // 检查 sendNotify 函数是否存在
+        if (typeof sendNotify !== 'function') {
+            throw new Error('sendNotify 函数未定义');
+        }
+        
+        log('开始调用 sendNotify 函数...');
+        
+        // 尝试发送通知
+        const result = await sendNotify(title, content);
+        log(`sendNotify 返回值: ${JSON.stringify(result)}`);
+        
+        return result;
+    } catch (error) {
+        log(`调试发现错误: ${error.message}`, 'ERROR');
+        log(`错误堆栈: ${error.stack}`, 'ERROR');
+        throw error;
+    }
+}
+
 // 主函数
+=======
 async function main() {
     log('='.repeat(50));
     log('YBT 签到脚本开始执行');
@@ -240,10 +268,28 @@ async function main() {
     // 发送通知
     try {
         const notifyMessage = formatNotifyMessage(results);
-        await sendNotify('YBT 签到结果', notifyMessage);
-        log('通知发送成功');
+        log('准备发送通知...');
+        log(`通知内容长度: ${notifyMessage.length} 字符`);
+        
+        // 检查通知内容是否过长，如果超过1500字符则截断
+        let finalMessage = notifyMessage;
+        if (notifyMessage.length > 1500) {
+            finalMessage = notifyMessage.substring(0, 1400) + '
+
+...(内容过长已截断)';
+            log('通知内容过长，已自动截断', 'WARN');
+        }
+        
+        // 使用调试函数发送通知
+        await debugSendNotify('YBT 签到结果', finalMessage);
+        
+        // 等待一下确保通知发送完成
+        await delay(1000);
+        log('通知发送完成');
+        
     } catch (error) {
-        log(`通知发送失败: ${error.message}`, 'WARN');
+        log(`通知发送失败: ${error.message}`, 'ERROR');
+        log(`错误详情: ${error.stack}`, 'ERROR');
     }
     
     log('='.repeat(50));
