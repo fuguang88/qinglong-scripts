@@ -8,7 +8,7 @@
  * 定时任务建议: 0 8 * * * (每天早上8点执行)
  * 
  * 作者: CodeBuddy
- * 更新时间: 2025-01-24
+ * 更新时间: 2025-01-23
  */
 
 const axios = require('axios');
@@ -212,7 +212,6 @@ async function debugSendNotify(title, content) {
 }
 
 // 主函数
-=======
 async function main() {
     log('='.repeat(50));
     log('YBT 签到脚本开始执行');
@@ -274,9 +273,7 @@ async function main() {
         // 检查通知内容是否过长，如果超过1500字符则截断
         let finalMessage = notifyMessage;
         if (notifyMessage.length > 1500) {
-            finalMessage = notifyMessage.substring(0, 1400) + '
-
-...(内容过长已截断)';
+            finalMessage = notifyMessage.substring(0, 1400) + '\n\n...(内容过长已截断)';
             log('通知内容过长，已自动截断', 'WARN');
         }
         
