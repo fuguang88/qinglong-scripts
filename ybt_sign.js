@@ -193,14 +193,18 @@ async function sendQLNotify(title, content) {
     log(`标题: ${title}`);
     log(`内容长度: ${content.length}`);
     
-    // 尝试多个可能的青龙面板 API 地址
-    const possibleUrls = [
-        'http://localhost:5700/notify',
-        'http://127.0.0.1:5700/notify',
-        'http://localhost:5701/notify',
-        'http://127.0.0.1:5701/notify',
-        'http://localhost:5600/notify',
-        'http://127.0.0.1:5600/notify'
+    // 尝试多个可能的青龙面板 API 地址和端口
+    const possibleConfigs = [
+        { url: 'http://localhost:5700/open/notify', port: 5700 },
+        { url: 'http://127.0.0.1:5700/open/notify', port: 5700 },
+        { url: 'http://localhost:5700/notify', port: 5700 },
+        { url: 'http://127.0.0.1:5700/notify', port: 5700 },
+        { url: 'http://localhost:5701/open/notify', port: 5701 },
+        { url: 'http://127.0.0.1:5701/open/notify', port: 5701 },
+        { url: 'http://localhost:5600/open/notify', port: 5600 },
+        { url: 'http://127.0.0.1:5600/open/notify', port: 5600 },
+        { url: 'http://localhost:5600/notify', port: 5600 },
+        { url: 'http://127.0.0.1:5600/notify', port: 5600 }
     ];
     
     const notifyData = {
@@ -208,17 +212,29 @@ async function sendQLNotify(title, content) {
         content: content
     };
     
-    // 尝试每个可能的 URL
-    for (const url of possibleUrls) {
+    // 尝试每个可能的配置
+    for (const config of possibleConfigs) {
         try {
-            log(`尝试 API 地址: ${url}`);
+            log(`尝试 API 地址: ${config.url}`);
+            
+            // 准备请求头
+            const headers = {
+                'Content-Type': 'application/json'
+            };
+            
+            // 尝试添加可能的认证头
+            if (process.env.QL_TOKEN) {
+                headers['Authorization'] = `Bearer ${process.env.QL_TOKEN}`;
+            }
+            if (process.env.QL_CLIENT_ID && process.env.QL_CLIENT_SECRET) {
+                headers['Client-ID'] = process.env.QL_CLIENT_ID;
+                headers['Client-Secret'] = process.env.QL_CLIENT_SECRET;
+            }
             
             const response = await axios({
                 method: 'PUT',
-                url: url,
-                headers: {
-                    'Content-Type': 'application/json'
-                },
+                url: config.url,
+                headers: headers,
                 data: notifyData,
                 timeout: 5000
             });
@@ -232,8 +248,8 @@ async function sendQLNotify(title, content) {
             }
             
         } catch (error) {
-            log(`❌ ${url} 调用失败: ${error.message}`);
-            continue; // 尝试下一个 URL
+            log(`❌ ${config.url} 调用失败: ${error.message}`);
+            continue; // 尝试下一个配置
         }
     }
     
