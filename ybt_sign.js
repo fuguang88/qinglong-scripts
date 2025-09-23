@@ -187,30 +187,76 @@ function formatNotifyMessage(results) {
     return message;
 }
 
-// 调试用的通知发送函数
-async function debugSendNotify(title, content) {
-    log('=== 通知调试信息 ===');
+// 智能通知发送函数
+async function sendQLNotify(title, content) {
+    log('=== 智能通知发送 ===');
     log(`标题: ${title}`);
     log(`内容长度: ${content.length}`);
-    log(`内容预览: ${content.substring(0, 100)}...`);
     
-    try {
-        // 检查 sendNotify 函数是否存在
-        if (typeof sendNotify !== 'function') {
-            throw new Error('sendNotify 函数未定义');
+    // 尝试多个可能的青龙面板 API 地址
+    const possibleUrls = [
+        'http://localhost:5700/notify',
+        'http://127.0.0.1:5700/notify',
+        'http://localhost:5701/notify',
+        'http://127.0.0.1:5701/notify',
+        'http://localhost:5600/notify',
+        'http://127.0.0.1:5600/notify'
+    ];
+    
+    const notifyData = {
+        title: title,
+        content: content
+    };
+    
+    // 尝试每个可能的 URL
+    for (const url of possibleUrls) {
+        try {
+            log(`尝试 API 地址: ${url}`);
+            
+            const response = await axios({
+                method: 'PUT',
+                url: url,
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                data: notifyData,
+                timeout: 5000
+            });
+            
+            log(`API 响应状态: ${response.status}`);
+            
+            if (response.status === 200 || response.status === 201) {
+                log('✅ 青龙面板 API 通知发送成功！');
+                log(`响应数据: ${JSON.stringify(response.data)}`);
+                return true;
+            }
+            
+        } catch (error) {
+            log(`❌ ${url} 调用失败: ${error.message}`);
+            continue; // 尝试下一个 URL
         }
-        
-        log('开始调用 sendNotify 函数...');
-        
-        // 尝试发送通知
-        const result = await sendNotify(title, content);
-        log(`sendNotify 返回值: ${JSON.stringify(result)}`);
-        
-        return result;
+    }
+    
+    // 所有 API 都失败，尝试传统方式
+    log('⚠️ 所有 API 地址都失败，尝试传统通知方式...', 'WARN');
+    return await fallbackSendNotify(title, content);
+}
+
+// 传统通知发送函数（备用）
+async function fallbackSendNotify(title, content) {
+    try {
+        if (typeof sendNotify === 'function') {
+            log('使用传统 sendNotify 函数...');
+            const result = await sendNotify(title, content);
+            log(`传统 sendNotify 返回值: ${JSON.stringify(result)}`);
+            return result;
+        } else {
+            log('sendNotify 函数不存在，跳过通知发送', 'WARN');
+            return false;
+        }
     } catch (error) {
-        log(`调试发现错误: ${error.message}`, 'ERROR');
-        log(`错误堆栈: ${error.stack}`, 'ERROR');
-        throw error;
+        log(`传统通知发送失败: ${error.message}`, 'ERROR');
+        return false;
     }
 }
 
@@ -280,8 +326,8 @@ async function main() {
             log('通知内容过长，已自动截断', 'WARN');
         }
         
-        // 使用调试函数发送通知
-        await debugSendNotify('YBT 签到结果', finalMessage);
+        // 使用新版青龙面板 API 发送通知
+        await sendQLNotify('YBT 签到结果', finalMessage);
         
         // 等待一下确保通知发送完成
         await delay(1000);
