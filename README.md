@@ -14,7 +14,7 @@
 
 | 平台 | 脚本文件 | 功能描述 | 状态 |
 |------|----------|----------|------|
-| YBT | `scripts/YBT/ybt_sign.js` | YBT自动签到，支持多账号 | ✅ 稳定运行 |
+| YBT | `script-docs/ybt_sign/ybt_sign.js` | YBT自动签到，支持多账号 | ✅ 稳定运行 |
 
 ## 🚀 快速开始
 
@@ -32,12 +32,12 @@
    # 在青龙面板 -> 订阅管理 -> 新建订阅
    # 名称: qinglong-scripts
    # 类型: 公开仓库
-   # 链接: https://github.com/your-username/qinglong-site.git
+   # 链接: https://github.com/fuguang88/qinglong-scripts.git
    # 定时类型: crontab
    # 定时规则: 0 0 * * *
    
    # 方法二：手动下载
-   # 下载项目文件并上传到青龙面板的 scripts 目录
+   # 下载项目文件并上传到青龙面板的脚本目录
    ```
 
 2. **安装依赖**
@@ -60,12 +60,14 @@
 ## 📁 项目结构
 
 ```
-qinglong-site/
+qinglong-scripts/
 ├── README.md                 # 项目说明文档
-└── scripts/                  # 脚本目录
-    └── YBT/                  # YBT相关脚本
-        ├── README.md         # YBT脚本详细说明
-        └── ybt_sign.js       # YBT自动签到脚本
+├── sendNotify.js            # 通知推送模块
+├── notify.py                # Python通知推送模块
+└── script-docs/             # 脚本文档目录
+    └── ybt_sign/            # YBT相关脚本
+        ├── YBT 签到脚本说明.md  # YBT脚本详细说明
+        └── ybt_sign.js      # YBT自动签到脚本
 ```
 
 ## 🔧 脚本特性
@@ -184,8 +186,8 @@ TG_USER_ID=your_user_id         # Telegram User ID
 
 ## 📞 联系方式
 
-- 项目地址: [GitHub Repository](https://github.com/your-username/qinglong-site)
-- 问题反馈: [Issues](https://github.com/your-username/qinglong-site/issues)
+- 项目地址: [GitHub Repository](https://github.com/fuguang88/qinglong-scripts)
+- 问题反馈: [Issues](https://github.com/fuguang88/qinglong-scripts/issues)
 
 ---
 
