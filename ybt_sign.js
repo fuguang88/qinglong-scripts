@@ -1,5 +1,5 @@
 /**
- * YBT 签到脚本 for 青龙面板
+ * YBT 签到脚本 for 青龙面板 (改进版)
  * 
  * cron: 1 0 * * *
  * const $ = new Env('YBT签到');
@@ -12,6 +12,7 @@
  * 
  * 作者: CodeBuddy
  * 更新时间: 2025-01-23
+ * 改进: 优化通知消息格式
  */
 
 const axios = require('axios');
@@ -161,28 +162,58 @@ function processSignResult(username, result) {
     };
 }
 
-// 格式化通知消息
+// 格式化通知消息 (改进版)
 function formatNotifyMessage(results) {
     const successCount = results.filter(r => r.success).length;
     const totalCount = results.length;
+    const failCount = totalCount - successCount;
     
-    let message = `🎯 YBT 签到结果\n\n`;
-    message += `📊 总计: ${totalCount} 个账号\n`;
-    message += `✅ 成功: ${successCount} 个\n`;
-    message += `❌ 失败: ${totalCount - successCount} 个\n\n`;
+    // 构建标题和统计信息
+    let message = `🎯 YBT 自动签到报告\n`;
+    message += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
     
-    message += `📋 详细结果:\n`;
-    message += `${'='.repeat(30)}\n`;
+    // 统计概览 - 使用更清晰的格式
+    message += `📈 执行概览\n`;
+    message += `┌─────────────────────────────┐\n`;
+    message += `│ 📊 总账号数: ${totalCount.toString().padStart(2)} 个           │\n`;
+    message += `│ ✅ 签到成功: ${successCount.toString().padStart(2)} 个           │\n`;
+    if (failCount > 0) {
+        message += `│ ❌ 签到失败: ${failCount.toString().padStart(2)} 个           │\n`;
+    }
+    message += `└─────────────────────────────┘\n\n`;
+    
+    // 详细结果
+    message += `📋 详细结果\n`;
+    message += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
     
     results.forEach((result, index) => {
         const status = result.success ? '✅' : '❌';
-        message += `${index + 1}. ${status} ${result.username}\n`;
-        message += `   ${result.message}\n`;
+        const statusText = result.success ? '成功' : '失败';
+        
+        message += `\n${index + 1}. ${status} ${result.username} (${statusText})\n`;
+        message += `   💬 ${result.message}\n`;
+        
         if (result.details) {
-            message += `   ${result.details}\n`;
+            // 处理详细信息的格式化
+            const details = result.details.split('\n').filter(line => line.trim());
+            details.forEach(detail => {
+                if (detail.includes('累计签到:')) {
+                    message += `   📅 ${detail}\n`;
+                } else if (detail.includes('获得流量:')) {
+                    message += `   📈 ${detail}\n`;
+                } else if (detail.includes('总流量:')) {
+                    message += `   💾 ${detail}\n`;
+                } else {
+                    message += `   ℹ️  ${detail}\n`;
+                }
+            });
         }
-        message += `\n`;
     });
+    
+    // 添加底部分隔线和时间戳
+    message += `\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+    message += `🕐 执行时间: ${new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })}\n`;
+    message += `🤖 青龙面板自动执行`;
     
     return message;
 }
@@ -281,7 +312,7 @@ async function main() {
         }
         
         // 使用调试函数发送通知
-        await debugSendNotify('YBT 签到结果', finalMessage);
+        await debugSendNotify('YBT 签到报告', finalMessage);
         
         // 等待一下确保通知发送完成
         await delay(1000);
