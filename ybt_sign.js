@@ -1,5 +1,5 @@
 /**
- * YBT 签到脚本 for 青龙面板 (改进版)
+ * YBT 签到脚本 for 青龙面板 (简洁版)
  * 
  * cron: 1 0 * * *
  * const $ = new Env('YBT签到');
@@ -12,7 +12,7 @@
  * 
  * 作者: CodeBuddy
  * 更新时间: 2025-01-23
- * 改进: 优化通知消息格式
+ * 改进: 简洁美观的通知格式
  */
 
 const axios = require('axios');
@@ -162,7 +162,7 @@ function processSignResult(username, result) {
     };
 }
 
-// 格式化通知消息 (改进版)
+// 格式化通知消息 (简洁版)
 function formatNotifyMessage(results) {
     const successCount = results.filter(r => r.success).length;
     const totalCount = results.length;
@@ -170,28 +170,26 @@ function formatNotifyMessage(results) {
     
     // 构建标题和统计信息
     let message = `🎯 YBT 自动签到报告\n`;
-    message += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
+    message += `${'='.repeat(30)}\n\n`;
     
-    // 统计概览 - 使用更清晰的格式
-    message += `📈 执行概览\n`;
-    message += `┌─────────────────────────────┐\n`;
-    message += `│ 📊 总账号数: ${totalCount.toString().padStart(2)} 个           │\n`;
-    message += `│ ✅ 签到成功: ${successCount.toString().padStart(2)} 个           │\n`;
+    // 统计概览 - 使用简洁的格式
+    message += `📊 执行概览:\n`;
+    message += `• 总账号数: ${totalCount} 个\n`;
+    message += `• 签到成功: ${successCount} 个\n`;
     if (failCount > 0) {
-        message += `│ ❌ 签到失败: ${failCount.toString().padStart(2)} 个           │\n`;
+        message += `• 签到失败: ${failCount} 个\n`;
     }
-    message += `└─────────────────────────────┘\n\n`;
+    message += `\n`;
     
     // 详细结果
-    message += `📋 详细结果\n`;
-    message += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+    message += `📋 详细结果:\n`;
+    message += `${'-'.repeat(25)}\n`;
     
     results.forEach((result, index) => {
         const status = result.success ? '✅' : '❌';
-        const statusText = result.success ? '成功' : '失败';
         
-        message += `\n${index + 1}. ${status} ${result.username} (${statusText})\n`;
-        message += `   💬 ${result.message}\n`;
+        message += `\n${index + 1}. ${status} ${result.username}\n`;
+        message += `   状态: ${result.message}\n`;
         
         if (result.details) {
             // 处理详细信息的格式化
@@ -203,16 +201,16 @@ function formatNotifyMessage(results) {
                     message += `   📈 ${detail}\n`;
                 } else if (detail.includes('总流量:')) {
                     message += `   💾 ${detail}\n`;
-                } else {
-                    message += `   ℹ️  ${detail}\n`;
+                } else if (detail.trim()) {
+                    message += `   💬 ${detail}\n`;
                 }
             });
         }
     });
     
-    // 添加底部分隔线和时间戳
-    message += `\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
-    message += `🕐 执行时间: ${new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })}\n`;
+    // 添加底部信息
+    message += `\n${'='.repeat(30)}\n`;
+    message += `🕐 ${new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })}\n`;
     message += `🤖 青龙面板自动执行`;
     
     return message;
