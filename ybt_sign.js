@@ -211,11 +211,15 @@ function processSignResult(username, result) {
 
     const { status, data } = result;
 
-    // 处理成功签到 (HTTP 200) - 首次签到
-    if (status === 200 && data && data.data) {
+    // 只有 HTTP 200 且包含完整流量数据的响应才是首次签到
+    if (status === 200 && data && data.data && 
+        data.data.sign_status === true && 
+        typeof data.data.get_traffic === 'number' && 
+        typeof data.data.total_traffic === 'number') {
+        
         const signData = data.data;
         
-        // 保存到缓存
+        // 保存到缓存 - 只有真正的首次签到才缓存
         saveToCacheIfFirstSign(username, signData, true);
         
         return {
@@ -231,11 +235,12 @@ function processSignResult(username, result) {
         };
     }
 
-    // 处理重复签到 (HTTP 400) - 今日已签到
-    if (status === 400 && data && data.data) {
+    // 处理所有其他情况（包括 HTTP 400 和其他 HTTP 200 响应）- 都不是首次签到
+    if (data && data.data) {
         const signData = data.data;
+        
+        // 如果是已签到状态，尝试从缓存获取流量数据
         if (signData.sign_status === true) {
-            // 尝试从缓存获取流量数据
             const cachedData = getFromCache(username);
             
             if (cachedData) {
@@ -279,7 +284,7 @@ function processSignResult(username, result) {
         };
     }
 
-    // 处理其他情况
+    // 处理其他失败情况
     return {
         username,
         success: false,
