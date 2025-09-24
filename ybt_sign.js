@@ -1,5 +1,5 @@
 /**
- * YBT 签到脚本 for 青龙面板 (简洁版)
+ * YBT 签到脚本 for 青龙面板 (缓存版)
  * 
  * cron: 1 0 * * *
  * const $ = new Env('YBT签到');
@@ -12,10 +12,12 @@
  * 
  * 作者: CodeBuddy
  * 更新时间: 2025-01-23
- * 改进: 简洁美观的通知格式
+ * 功能: 缓存首次签到数据，重复签到时显示缓存的流量信息
  */
 
 const axios = require('axios');
+const fs = require('fs');
+const path = require('path');
 const { sendNotify } = require('./sendNotify.js');
 
 // 配置信息
@@ -24,7 +26,8 @@ const CONFIG = {
     TIMEOUT: 12000, // 12秒超时
     MAX_RETRY: 3,   // 最大重试次数
     RETRY_DELAY: 2000, // 重试延迟(毫秒)
-    USER_AGENT: 'Mozilla/5.0 (ScriptCat Smart) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36'
+    USER_AGENT: 'Mozilla/5.0 (ScriptCat Smart) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36',
+    CACHE_FILE: path.join(__dirname, 'ybt_sign_cache.json') // 缓存文件路径
 };
 
 // 日志输出函数
@@ -36,6 +39,97 @@ function log(message, level = 'INFO') {
 // 延迟函数
 function delay(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+// 获取今天的日期字符串 (YYYY-MM-DD)
+function getTodayString() {
+    const today = new Date();
+    return today.toISOString().split('T')[0];
+}
+
+// 读取缓存数据
+function readCache() {
+    try {
+        if (!fs.existsSync(CONFIG.CACHE_FILE)) {
+            return {};
+        }
+        
+        const cacheContent = fs.readFileSync(CONFIG.CACHE_FILE, 'utf8');
+        const cache = JSON.parse(cacheContent);
+        
+        // 清理过期缓存 (保留今天的数据)
+        const today = getTodayString();
+        const cleanedCache = {};
+        
+        Object.keys(cache).forEach(username => {
+            if (cache[username] && cache[username].date === today) {
+                cleanedCache[username] = cache[username];
+            }
+        });
+        
+        // 如果缓存被清理了，更新文件
+        if (Object.keys(cleanedCache).length !== Object.keys(cache).length) {
+            writeCache(cleanedCache);
+            log(`清理了 ${Object.keys(cache).length - Object.keys(cleanedCache).length} 个过期缓存条目`);
+        }
+        
+        return cleanedCache;
+    } catch (error) {
+        log(`读取缓存失败: ${error.message}`, 'WARN');
+        return {};
+    }
+}
+
+// 写入缓存数据
+function writeCache(cache) {
+    try {
+        fs.writeFileSync(CONFIG.CACHE_FILE, JSON.stringify(cache, null, 2), 'utf8');
+    } catch (error) {
+        log(`写入缓存失败: ${error.message}`, 'ERROR');
+    }
+}
+
+// 保存用户签到数据到缓存
+function saveToCacheIfFirstSign(username, signData, isFirstSign) {
+    if (!isFirstSign || !signData) {
+        return;
+    }
+    
+    try {
+        const cache = readCache();
+        const today = getTodayString();
+        
+        cache[username] = {
+            date: today,
+            sign_count: signData.sign_count || 0,
+            get_traffic: signData.get_traffic || 0,
+            total_traffic: signData.total_traffic || 0,
+            message: signData.message || '签到成功',
+            timestamp: new Date().toISOString()
+        };
+        
+        writeCache(cache);
+        log(`用户 ${username} 的签到数据已缓存`);
+    } catch (error) {
+        log(`保存缓存失败: ${error.message}`, 'ERROR');
+    }
+}
+
+// 从缓存获取用户数据
+function getFromCache(username) {
+    try {
+        const cache = readCache();
+        const today = getTodayString();
+        
+        if (cache[username] && cache[username].date === today) {
+            return cache[username];
+        }
+        
+        return null;
+    } catch (error) {
+        log(`读取用户 ${username} 缓存失败: ${error.message}`, 'ERROR');
+        return null;
+    }
 }
 
 // 获取用户列表
@@ -109,15 +203,21 @@ function processSignResult(username, result) {
             username,
             success: false,
             message: `签到失败: ${result.error}`,
-            details: `错误代码: ${result.code || 'UNKNOWN'}`
+            details: `错误代码: ${result.code || 'UNKNOWN'}`,
+            isFirstSign: false,
+            dataSource: 'error'
         };
     }
 
     const { status, data } = result;
 
-    // 处理成功签到 (HTTP 200)
+    // 处理成功签到 (HTTP 200) - 首次签到
     if (status === 200 && data && data.data) {
         const signData = data.data;
+        
+        // 保存到缓存
+        saveToCacheIfFirstSign(username, signData, true);
+        
         return {
             username,
             success: true,
@@ -125,21 +225,45 @@ function processSignResult(username, result) {
             details: `${signData.message || '签到成功'}\n` +
                     `累计签到: ${signData.sign_count || 0} 天\n` +
                     `获得流量: ${signData.get_traffic || 0} MB\n` +
-                    `总流量: ${signData.total_traffic || 0} MB`
+                    `总流量: ${signData.total_traffic || 0} MB`,
+            isFirstSign: true,
+            dataSource: 'api'
         };
     }
 
-    // 处理重复签到 (HTTP 400)
+    // 处理重复签到 (HTTP 400) - 今日已签到
     if (status === 400 && data && data.data) {
         const signData = data.data;
         if (signData.sign_status === true) {
-            return {
-                username,
-                success: true,
-                message: '今日已签到',
-                details: `${signData.message || '今日已签到'}\n` +
-                        `累计签到: ${signData.sign_count || 0} 天`
-            };
+            // 尝试从缓存获取流量数据
+            const cachedData = getFromCache(username);
+            
+            if (cachedData) {
+                // 使用缓存数据
+                return {
+                    username,
+                    success: true,
+                    message: '今日已签到',
+                    details: `${cachedData.message || '今日已签到'}\n` +
+                            `累计签到: ${cachedData.sign_count || 0} 天\n` +
+                            `获得流量: ${cachedData.get_traffic || 0} MB\n` +
+                            `总流量: ${cachedData.total_traffic || 0} MB`,
+                    isFirstSign: false,
+                    dataSource: 'cache'
+                };
+            } else {
+                // 没有缓存数据，使用API返回的基本信息
+                return {
+                    username,
+                    success: true,
+                    message: '今日已签到',
+                    details: `${signData.message || '今日已签到'}\n` +
+                            `累计签到: ${signData.sign_count || 0} 天\n` +
+                            `(流量信息需首次签到获取)`,
+                    isFirstSign: false,
+                    dataSource: 'api_limited'
+                };
+            }
         }
     }
 
@@ -149,7 +273,9 @@ function processSignResult(username, result) {
             username,
             success: false,
             message: '用户不存在',
-            details: '请检查用户名是否正确'
+            details: '请检查用户名是否正确',
+            isFirstSign: false,
+            dataSource: 'error'
         };
     }
 
@@ -158,24 +284,34 @@ function processSignResult(username, result) {
         username,
         success: false,
         message: '签到失败',
-        details: `HTTP状态: ${status}, 响应: ${JSON.stringify(data)}`
+        details: `HTTP状态: ${status}, 响应: ${JSON.stringify(data)}`,
+        isFirstSign: false,
+        dataSource: 'error'
     };
 }
 
-// 格式化通知消息 (简洁版)
+// 格式化通知消息 (缓存版)
 function formatNotifyMessage(results) {
     const successCount = results.filter(r => r.success).length;
     const totalCount = results.length;
     const failCount = totalCount - successCount;
+    const firstSignCount = results.filter(r => r.isFirstSign).length;
+    const cachedCount = results.filter(r => r.dataSource === 'cache').length;
     
     // 构建标题和统计信息
     let message = `🎯 YBT 自动签到报告\n`;
     message += `${'='.repeat(30)}\n\n`;
     
-    // 统计概览 - 使用简洁的格式
+    // 统计概览
     message += `📊 执行概览:\n`;
     message += `• 总账号数: ${totalCount} 个\n`;
     message += `• 签到成功: ${successCount} 个\n`;
+    if (firstSignCount > 0) {
+        message += `• 首次签到: ${firstSignCount} 个 🆕\n`;
+    }
+    if (cachedCount > 0) {
+        message += `• 缓存数据: ${cachedCount} 个 💾\n`;
+    }
     if (failCount > 0) {
         message += `• 签到失败: ${failCount} 个\n`;
     }
@@ -187,8 +323,16 @@ function formatNotifyMessage(results) {
     
     results.forEach((result, index) => {
         const status = result.success ? '✅' : '❌';
+        let dataSourceIcon = '';
         
-        message += `\n${index + 1}. ${status} ${result.username}\n`;
+        // 添加数据源标识
+        if (result.dataSource === 'cache') {
+            dataSourceIcon = ' 💾';
+        } else if (result.isFirstSign) {
+            dataSourceIcon = ' 🆕';
+        }
+        
+        message += `\n${index + 1}. ${status} ${result.username}${dataSourceIcon}\n`;
         message += `   状态: ${result.message}\n`;
         
         if (result.details) {
@@ -201,8 +345,10 @@ function formatNotifyMessage(results) {
                     message += `   📈 ${detail}\n`;
                 } else if (detail.includes('总流量:')) {
                     message += `   💾 ${detail}\n`;
-                } else if (detail.trim()) {
+                } else if (detail.trim() && !detail.includes('流量信息需首次签到获取')) {
                     message += `   💬 ${detail}\n`;
+                } else if (detail.includes('流量信息需首次签到获取')) {
+                    message += `   ⚠️ ${detail}\n`;
                 }
             });
         }
@@ -212,6 +358,14 @@ function formatNotifyMessage(results) {
     message += `\n${'='.repeat(30)}\n`;
     message += `🕐 ${new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })}\n`;
     message += `🤖 青龙面板自动执行`;
+    
+    // 添加缓存说明
+    if (cachedCount > 0) {
+        message += `\n💡 💾标记表示使用缓存数据`;
+    }
+    if (firstSignCount > 0) {
+        message += `\n💡 🆕标记表示今日首次签到`;
+    }
     
     return message;
 }
@@ -246,7 +400,7 @@ async function debugSendNotify(title, content) {
 // 主函数
 async function main() {
     log('='.repeat(50));
-    log('YBT 签到脚本开始执行');
+    log('YBT 签到脚本开始执行 (缓存版)');
     log('='.repeat(50));
     
     const users = getUserList();
@@ -256,6 +410,10 @@ async function main() {
     }
     
     log(`发现 ${users.length} 个用户: ${users.join(', ')}`);
+    log(`缓存文件路径: ${CONFIG.CACHE_FILE}`);
+    
+    // 清理过期缓存
+    readCache();
     
     const results = [];
     
@@ -268,7 +426,7 @@ async function main() {
             const processedResult = processSignResult(username, signResult);
             results.push(processedResult);
             
-            log(`用户 ${username}: ${processedResult.message}`);
+            log(`用户 ${username}: ${processedResult.message} (数据源: ${processedResult.dataSource})`);
             if (processedResult.details) {
                 log(`详情: ${processedResult.details.replace(/\n/g, ' | ')}`);
             }
@@ -284,7 +442,9 @@ async function main() {
                 username,
                 success: false,
                 message: '处理失败',
-                details: error.message
+                details: error.message,
+                isFirstSign: false,
+                dataSource: 'error'
             });
         }
     }
@@ -294,7 +454,10 @@ async function main() {
     log('签到任务执行完成');
     
     const successCount = results.filter(r => r.success).length;
-    log(`成功: ${successCount}/${results.length}`);
+    const firstSignCount = results.filter(r => r.isFirstSign).length;
+    const cachedCount = results.filter(r => r.dataSource === 'cache').length;
+    
+    log(`成功: ${successCount}/${results.length} (首次: ${firstSignCount}, 缓存: ${cachedCount})`);
     
     // 发送通知
     try {
