@@ -41,10 +41,14 @@ function delay(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-// 获取今天的日期字符串 (YYYY-MM-DD)
+// 获取今天的日期字符串 (YYYY-MM-DD) - 修复时区问题
 function getTodayString() {
     const today = new Date();
-    return today.toISOString().split('T')[0];
+    // 使用本地时区（北京时间）获取日期
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, '0');
+    const day = String(today.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
 }
 
 // 读取缓存数据
